@@ -7,43 +7,46 @@ import (
 	"github.com/DisgoOrg/disgolink/lavalink"
 )
 
-var _ lavalink.Plugin = (*SponsorBlockPlugin)(nil)
+var _ lavalink.WebsocketMessageInHandler = (*SponsorBlockPlugin)(nil)
 
 type SponsorBlockPlugin struct{}
 
-func (p *SponsorBlockPlugin) OnWebsocketMessageIn(node lavalink.Node, data []byte) {
+func (p *SponsorBlockPlugin) OnWebsocketMessageIn(node lavalink.Node, data []byte) bool {
 	var opType struct {
 		Op   lavalink.OpType    `json:"op"`
 		Type lavalink.EventType `json:"type"`
 	}
 	if err := json.Unmarshal(data, &opType); err != nil {
 		node.Lavalink().Logger().Error("failed to unmarshal json", err)
-		return
+		return true
 	}
 	if opType.Op != lavalink.OpTypeEvent {
-		return
+		return false
 	}
 	switch opType.Type {
 	case "SegmentsLoaded":
 		var v SegmentsLoadedEvent
 		if err := json.Unmarshal(data, &v); err != nil {
 			node.Lavalink().Logger().Error("failed to SegmentsLoadedEvent", err)
-			return
+			return true
 		}
 		if _, err := musicPlayers[v.GuildID].channel.CreateMessage(discord.NewMessageCreateBuilder().SetContentf("Loaded %d segments", len(v.Segments)).Build()); err != nil {
 			node.Lavalink().Logger().Error("failed to send SegmentsLoadedEvent message", err)
 		}
+		return true
 
 	case "SegmentSkipped":
 		var v SegmentSkippedEvent
 		if err := json.Unmarshal(data, &v); err != nil {
 			node.Lavalink().Logger().Error("failed to SegmentSkipped", err)
-			return
+			return true
 		}
 		if _, err := musicPlayers[v.GuildID].channel.CreateMessage(discord.NewMessageCreateBuilder().SetContentf("Skipped `%s` segment from %s to %s", v.Segment.Category, secondsToMinutes(v.Segment.Start/1000), secondsToMinutes(v.Segment.End/1000)).Build()); err != nil {
 			node.Lavalink().Logger().Error("failed to send SegmentSkipped message", err)
 		}
+		return true
 	}
+	return false
 }
 
 func secondsToMinutes(inSeconds int) string {
